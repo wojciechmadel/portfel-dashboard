@@ -29,12 +29,14 @@ url_google_sheets = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQbbEQJDM7j
 @st.cache_data(ttl=60)
 def wczytaj_dane():
     try:
-        # header=1 mówi Pandas, żeby pobrał nagłówki kolumn z DRUGIEGO wiersza 
-        # (czyli LP, Konto, INSTRUMENT, Ticker itd.)
+        # Wczytujemy dane, biorąc drugi wiersz jako nagłówki
         df = pd.read_csv(url_google_sheets, header=1)
         
-        # Opcjonalnie: usunięcie wierszy, w których brakuje wszystkich danych
+        # 1. Usuwamy wiersze, które są całkowicie puste
         df = df.dropna(how='all')
+        
+        # 2. KLUCZOWY FILTR: Usuwamy wiersze, które nie mają wpisanego Tickera (pozbywamy się ukrytych miesięcy)
+        df = df.dropna(subset=['Ticker'])
         
         return df
     except Exception as e:
@@ -44,8 +46,8 @@ def wczytaj_dane():
 df_surowe = wczytaj_dane()
 
 if df_surowe is not None:
-    st.success("Dane z Google Sheets zostały pomyślnie załadowane!")
-    st.subheader("Podgląd tabeli z arkusza")
+    st.success("Dane z Google Sheets zostały pomyślnie załadowane i wyczyszczone!")
+    st.subheader("Twój czysty portfel")
     st.dataframe(df_surowe)
 else:
     st.warning("Oczekiwanie na dane lub problem z połączeniem z arkuszem.")
