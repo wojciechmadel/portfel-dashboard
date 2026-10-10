@@ -69,18 +69,39 @@ if df_surowe is not None:
     # --- GŁÓWNA TABELA ---
     st.subheader("Szczegóły portfela")
     
-    # Dodajemy mechanizm wyboru widocznych kolumn, który zapamiętuje stan
-    wszystkie_kolumny = df_filtrowane.columns.tolist()
-    wybrane_kolumny = st.multiselect(
-        "Pokaż / ukryj kolumny w głównej tabeli:",
-        options=wszystkie_kolumny,
-        default=wszystkie_kolumny,
-        help="Kliknij 'x' przy nazwie kolumny, aby ją ukryć."
-    )
+    # Automatycznie wybieramy tylko interesujące Cię 5 kolumn do górnej tabeli
+    szukane_kolumny = ['LP', 'INSTRUMENT', 'ŚREDNIA CENA ZAKUPU', 'AKTUALNA CENA RYNKOWA', 'RÓŻNICA']
+    wybrane_kolumny = []
     
-    # Wyświetlamy tylko te kolumny, które są aktualnie wybrane
-    st.dataframe(df_filtrowane[wybrane_kolumny], use_container_width=True, hide_index=True)
+    for c in df_filtrowane.columns:
+        if any(szukana in c.upper() for szukana in szukane_kolumny):
+            wybrane_kolumny.append(c)
+            
+    # Wyświetlamy tylko odnalezione kolumny z w/w listy
+    if wybrane_kolumny:
+        st.dataframe(df_filtrowane[wybrane_kolumny], use_container_width=True, hide_index=True)
+    else:
+        st.dataframe(df_filtrowane, use_container_width=True, hide_index=True)
+        
+    # --- REKOMENDACJE (OKAZJE DO DOKUPIENIA) ---
+    # Szukamy kolumny zawierającej rekomendację lub sygnał
+    col_rek = next((c for c in df_filtrowane.columns if 'REKOMENDACJA' in c.upper()), None)
     
+    if col_rek and col_instrument:
+        # Wyciągamy wiersze, które zawierają słowo "OKAZJA" lub "DOKUP" (bez względu na wielkość liter)
+        okazje = df_filtrowane[df_filtrowane[col_rek].astype(str).str.contains('OKAZJA|DOKUP', case=False, na=False)]
+        
+        if not okazje.empty:
+            st.success("🎯 **Sygnały inwestycyjne - rozważ dokupienie tych pozycji:**")
+            
+            # W podsumowaniu okazji wyświetlamy tylko nazwę, cenę i rekomendację
+            kolumny_okazje = [col_instrument]
+            col_cena = next((c for c in df_filtrowane.columns if 'AKTUALNA CENA RYNKOWA' in c.upper()), None)
+            if col_cena: kolumny_okazje.append(col_cena)
+            kolumny_okazje.append(col_rek)
+            
+            st.dataframe(okazje[kolumny_okazje], use_container_width=True, hide_index=True)
+
     # --- NOWA TABELA UDZIAŁÓW ---
     st.divider()
     st.subheader("Struktura portfela (Alokacja)")
