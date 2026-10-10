@@ -114,4 +114,41 @@ if df_surowe is not None:
     st.divider()
     st.subheader("Struktura portfela (Alokacja)")
     
-    col_udzial = next((c for c in df_filtrowane.columns if 'AKTUALNY UDZIAŁ' in c.upper() or 'UDZIAŁ PROCENTOWY'
+    col_udzial = next((c for c in df_filtrowane.columns if 'AKTUALNY UDZIAŁ' in c.upper() or 'UDZIAŁ PROCENTOWY' in c.upper()), None)
+    col_cel = next((c for c in df_filtrowane.columns if 'CEL' in c.upper()), None)
+    
+    if col_konto and col_instrument and col_udzial and col_cel:
+        df_alokacja = df_filtrowane[[col_konto, col_instrument, col_udzial, col_cel]].copy()
+        
+        df_alokacja.rename(columns={
+            col_konto: 'Konto',
+            col_instrument: 'Nazwa',
+            col_udzial: 'Udział procentowy',
+            col_cel: 'Udział cel'
+        }, inplace=True)
+        
+        st.dataframe(df_alokacja, use_container_width=True, hide_index=True)
+    else:
+        st.info("Nie odnaleziono wszystkich potrzebnych kolumn do wyświetlenia tabeli udziałów (Konto, Instrument, Udział w portfelu, Cel).")
+        
+    # --- WYKRES POD TABELĄ ---
+    col_wartosc = next((c for c in df_filtrowane.columns if 'WARTOŚĆ RYNKOWA' in c.upper()), None)
+    
+    if col_wartosc and col_instrument:
+        st.markdown("<br>**Wykres podziału portfela**", unsafe_allow_html=True)
+        
+        df_wykres = df_filtrowane.copy()
+        df_wykres['Wartość PLN'] = df_wykres[col_wartosc].apply(czysc_liczbe)
+        
+        df_wykres = df_wykres[df_wykres['Wartość PLN'] > 0]
+        
+        wykres = alt.Chart(df_wykres).mark_arc(innerRadius=60).encode(
+            theta=alt.Theta(field="Wartość PLN", type="quantitative"),
+            color=alt.Color(field=col_instrument, type="nominal", legend=alt.Legend(title="Instrumenty")),
+            tooltip=[col_konto, col_instrument, 'Wartość PLN'] if col_konto else [col_instrument, 'Wartość PLN']
+        ).properties(height=450)
+        
+        st.altair_chart(wykres, use_container_width=True)
+
+else:
+    st.warning("Oczekiwanie na dane lub problem z połączeniem z arkuszem.")
