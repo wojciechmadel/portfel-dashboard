@@ -24,7 +24,7 @@ def czysc_liczbe(wartosc):
     except:
         return 0.0
 
-url_google_sheets = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQbbEQJDM7jXtXbscroBG3c0G53wP1gbkcchHHJNQsVNC0pPl7f130bTj6hwwp9eig4FIDou6S7MjvE6/pubhtml"
+url_google_sheets = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQbbEQJDM7jtXbscroBG3cOG53wP1gbkccHHJNQsvNC0cpPl7fl30bTj6hwwp9eiG4FIdou6S7MjvE6/pub?gid=1930372896&single=true&output=csv"
 
 @st.cache_data(ttl=60)
 def wczytaj_dane():
