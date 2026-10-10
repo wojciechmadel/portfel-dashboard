@@ -56,7 +56,7 @@ if df_surowe is not None:
     col_wartosc = next((c for c in df_surowe.columns if 'WARTOŚĆ RYNKOWA' in c.upper()), None)
     col_zysk = next((c for c in df_surowe.columns if 'ZYSK NETTO' in c.upper() or 'ZYSK / STRATA' in c.upper()), None)
     
-    # --- PASEK BOCZNY (POJEDYNCZA ROZWIJANA LISTA - BEZ IKSÓW I TAGÓW) ---
+    # --- PASEK BOCZNY (TYLKO JEDNOKROTNY WYBÓR - BEZ IKSÓW I TAGÓW) ---
     st.sidebar.header("📊 Filtrowanie")
     if col_konto:
         unikalne_konta = sorted(list(set(df_surowe[col_konto].dropna().astype(str).str.strip().tolist())))
@@ -66,7 +66,7 @@ if df_surowe is not None:
             "Wybierz konto:", 
             options=opcje_filtru, 
             index=0,
-            key="filtr_konta_ostateczny"
+            key="filtr_konta_czysta_lista"
         )
         
         if wybrane_konto == "Wszystkie":
@@ -94,7 +94,7 @@ if df_surowe is not None:
         
         col_m1.metric("Pozycje (Zielone / Czerwone)", f"🟢 {ile_plus}  |  🔴 {ile_minus}" + (f"  |  ⚪ {ile_zero}" if ile_zero > 0 else ""))
         
-        # WAŻONA STOPA ZWROTU = (ŁĄCZNY ZYSK / ŁĄCZNY KAPITAŁ ZAINWESTOWANY) * 100
+        # WAŻONA STOPA ZWROTU
         if col_zysk and col_wartosc:
             suma_zysku = df_filtrowane[col_zysk].apply(czysc_liczbe).sum()
             suma_wartosci = df_filtrowane[col_wartosc].apply(czysc_liczbe).sum()
