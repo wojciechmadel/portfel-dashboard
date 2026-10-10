@@ -34,7 +34,6 @@ def wczytaj_dane():
         df.columns = df.columns.str.strip()
         df = df.dropna(how='all')
         
-        # Filtrowanie pustych wierszy bazując na kolumnie TICKER
         col_ticker = next((c for c in df.columns if 'TICKER' in c.upper()), None)
         if col_ticker:
             df = df.dropna(subset=[col_ticker])
@@ -69,21 +68,29 @@ if df_surowe is not None:
         
     # --- GŁÓWNA TABELA ---
     st.subheader("Szczegóły portfela")
-    st.dataframe(df_filtrowane, use_container_width=True, hide_index=True)
+    
+    # Dodajemy mechanizm wyboru widocznych kolumn, który zapamiętuje stan
+    wszystkie_kolumny = df_filtrowane.columns.tolist()
+    wybrane_kolumny = st.multiselect(
+        "Pokaż / ukryj kolumny w głównej tabeli:",
+        options=wszystkie_kolumny,
+        default=wszystkie_kolumny,
+        help="Kliknij 'x' przy nazwie kolumny, aby ją ukryć."
+    )
+    
+    # Wyświetlamy tylko te kolumny, które są aktualnie wybrane
+    st.dataframe(df_filtrowane[wybrane_kolumny], use_container_width=True, hide_index=True)
     
     # --- NOWA TABELA UDZIAŁÓW ---
     st.divider()
     st.subheader("Struktura portfela (Alokacja)")
     
-    # Szukamy kolumn, które mają w nazwie Udział i Cel
     col_udzial = next((c for c in df_filtrowane.columns if 'AKTUALNY UDZIAŁ' in c.upper() or 'UDZIAŁ PROCENTOWY' in c.upper()), None)
     col_cel = next((c for c in df_filtrowane.columns if 'CEL' in c.upper()), None)
     
     if col_konto and col_instrument and col_udzial and col_cel:
-        # Wybieramy tylko interesujące nas kolumny
         df_alokacja = df_filtrowane[[col_konto, col_instrument, col_udzial, col_cel]].copy()
         
-        # Zmieniamy nazwy na takie, o jakie prosiłeś
         df_alokacja.rename(columns={
             col_konto: 'Konto',
             col_instrument: 'Nazwa',
@@ -101,14 +108,11 @@ if df_surowe is not None:
     if col_wartosc and col_instrument:
         st.markdown("<br>**Wykres podziału portfela**", unsafe_allow_html=True)
         
-        # Przygotowujemy dane do wykresu
         df_wykres = df_filtrowane.copy()
         df_wykres['Wartość PLN'] = df_wykres[col_wartosc].apply(czysc_liczbe)
         
-        # Pomijamy zerowe pozycje
         df_wykres = df_wykres[df_wykres['Wartość PLN'] > 0]
         
-        # Interaktywny wykres
         wykres = alt.Chart(df_wykres).mark_arc(innerRadius=60).encode(
             theta=alt.Theta(field="Wartość PLN", type="quantitative"),
             color=alt.Color(field=col_instrument, type="nominal", legend=alt.Legend(title="Instrumenty")),
