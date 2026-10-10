@@ -24,9 +24,6 @@ def czysc_liczbe(wartosc):
     except:
         return 0.0
 
-# -------------------------------------------------------------
-# TUTAJ BYŁ BŁĄD – ADRES URL JEST TERAZ W CUDZYSŁOWIE
-# -------------------------------------------------------------
 url_google_sheets = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQbbEQJDM7jXtXbscroBG3c0G53wP1gbkcchHHJNQsVNC0pPl7f130bTj6hwwp9eig4FIDou6S7MjvE6/pubhtml"
 
 @st.cache_data(ttl=60)
@@ -44,8 +41,6 @@ df_surowe = wczytaj_dane()
 
 if df_surowe is not None:
     st.success("Dane z Google Sheets zostały pomyślnie załadowane!")
-    
-    # Wyświetlenie surowych lub wstępnie przetworzonych danych
     st.subheader("Podgląd tabeli z arkusza")
     st.dataframe(df_surowe)
 else:
