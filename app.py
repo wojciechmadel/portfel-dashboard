@@ -24,15 +24,14 @@ def czysc_liczbe(wartosc):
     except:
         return 0.0
 
+# Link CSV do Google Sheets
 url_google_sheets = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQbbEQJDM7jtXbscroBG3cOG53wP1gbkccHHJNQsvNC0cpPl7fl30bTj6hwwp9eiG4FIdou6S7MjvE6/pub?gid=1930372896&single=true&output=csv"
 
 @st.cache_data(ttl=60)
 def wczytaj_dane():
     try:
-        tabele = pd.read_html(url_google_sheets)
-        if tabele:
-            df = tabele[0]
-            return df
+        df = pd.read_csv(url_google_sheets)
+        return df
     except Exception as e:
         st.error(f"Błąd podczas wczytywania danych: {e}")
     return None
