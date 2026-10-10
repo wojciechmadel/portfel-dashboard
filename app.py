@@ -46,7 +46,6 @@ df_surowe = wczytaj_dane()
 
 if df_surowe is not None:
     
-    # Skracamy nazwę długiej kolumny
     dluga_nazwa = next((c for c in df_surowe.columns if 'AKTUALNA CENA RYNKOWA' in c.upper()), None)
     if dluga_nazwa:
         df_surowe = df_surowe.rename(columns={dluga_nazwa: 'Aktualna cena'})
@@ -56,24 +55,22 @@ if df_surowe is not None:
     col_instrument = next((c for c in df_surowe.columns if 'INSTRUMENT' in c.upper()), None)
     col_wartosc = next((c for c in df_surowe.columns if 'WARTOŚĆ RYNKOWA' in c.upper()), None)
     
-    # --- PASEK BOCZNY (WYGODNY FILTR KONT) ---
+    # --- PASEK BOCZNY (JEDNOKROTNY WYBÓR: WSZYSTKIE LUB KONKRETNE KONTO) ---
     st.sidebar.header("📊 Filtrowanie")
     if col_konto:
-        # Używamy set(), aby uniknąć jakichkolwiek duplikatów kont na liście
-        wszystkie_konta = sorted(list(set(df_surowe[col_konto].dropna().astype(str).tolist())))
-        wybrane_konta = st.sidebar.multiselect(
-            "Wybierz konto:", 
-            options=wszystkie_konta, 
-            default=wszystkie_konta
-        )
-        if wybrane_konta:
-            df_filtrowane = df_surowe[df_surowe[col_konto].astype(str).isin(wybrane_konta)].copy()
-        else:
+        unikalne_konta = sorted(list(set(df_surowe[col_konto].dropna().astype(str).tolist())))
+        opcje_filtru = ["Wszystkie"] + unikalne_konta
+        
+        wybrane_konto = st.sidebar.selectbox("Wybierz konto:", options=opcje_filtru)
+        
+        if wybrane_konto == "Wszystkie":
             df_filtrowane = df_surowe.copy()
+        else:
+            df_filtrowane = df_surowe[df_surowe[col_konto].astype(str) == wybrane_konto].copy()
     else:
         df_filtrowane = df_surowe.copy()
         
-    # --- TYTUŁ APLIKACJI NA SAMEJ GÓRZE ---
+    # --- TYTUŁ APLIKACJI ---
     st.title("📈 Dashboard Portfela")
         
     # --- PODSUMOWANIE NA GÓRZE ---
@@ -135,7 +132,7 @@ if df_surowe is not None:
             
             st.dataframe(okazje[kolumny_okazje], use_container_width=True, hide_index=True)
 
-    # --- NOWA TABELA UDZIAŁÓW ---
+    # --- TABELA UDZIAŁÓW ---
     st.divider()
     st.subheader("Struktura portfela (Alokacja)")
     
@@ -156,13 +153,12 @@ if df_surowe is not None:
     else:
         st.info("Nie odnaleziono wszystkich potrzebnych kolumn do wyświetlenia tabeli udziałów.")
         
-    # --- WYKRES POD TABELĄ ---
+    # --- WYKRES ---
     if col_wartosc and col_instrument:
         st.markdown("<br>**Wykres podziału portfela**", unsafe_allow_html=True)
         
         df_wykres = df_filtrowane.copy()
         df_wykres['Wartość PLN'] = df_wykres[col_wartosc].apply(czysc_liczbe)
-        
         df_wykres = df_wykres[df_wykres['Wartość PLN'] > 0]
         
         wykres = alt.Chart(df_wykres).mark_arc(innerRadius=60).encode(
