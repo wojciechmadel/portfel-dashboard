@@ -56,18 +56,17 @@ if df_surowe is not None:
     col_wartosc = next((c for c in df_surowe.columns if 'WARTOŚĆ RYNKOWA' in c.upper()), None)
     col_zysk = next((c for c in df_surowe.columns if 'ZYSK NETTO' in c.upper() or 'ZYSK / STRATA' in c.upper()), None)
     
-    # --- PASEK BOCZNY (TUTAJ ZASTĄPILIŚMY MULTISELECT ZWYKŁYM SELECTBOXEM) ---
+    # --- PASEK BOCZNY (TYLKO JEDNOKROTNY WYBÓR - BEZ IKSÓW I TAGÓW) ---
     st.sidebar.header("📊 Filtrowanie")
     if col_konto:
         unikalne_konta = sorted(list(set(df_surowe[col_konto].dropna().astype(str).str.strip().tolist())))
         opcje_filtru = ["Wszystkie"] + unikalne_konta
         
-        # st.sidebar.selectbox DODAJE ZWYKŁĄ ROZWIJANĄ LISTĘ BEZ TAGÓW I IKSÓW!
         wybrane_konto = st.sidebar.selectbox(
             "Wybierz konto:", 
             options=opcje_filtru, 
             index=0,
-            key="filtr_konta_v2"
+            key="filtr_konta_single_select_v1"
         )
         
         if wybrane_konto == "Wszystkie":
@@ -95,7 +94,7 @@ if df_surowe is not None:
         
         col_m1.metric("Pozycje (Zielone / Czerwone)", f"🟢 {ile_plus}  |  🔴 {ile_minus}" + (f"  |  ⚪ {ile_zero}" if ile_zero > 0 else ""))
         
-        # Ważona stopa zwrotu (Kwota Zysku / Kwota Zainwestowana)
+        # WAŻONA STOPA ZWROTU = (ŁĄCZNY ZYSK / ŁĄCZNY KAPITAŁ ZAINWESTOWANY) * 100
         if col_zysk and col_wartosc:
             suma_zysku = df_filtrowane[col_zysk].apply(czysc_liczbe).sum()
             suma_wartosci = df_filtrowane[col_wartosc].apply(czysc_liczbe).sum()
@@ -131,50 +130,4 @@ if df_surowe is not None:
         st.dataframe(df_filtrowane, use_container_width=True, hide_index=True)
         
     # --- REKOMENDACJE (OKAZJE DO DOKUPIENIA) ---
-    col_rek = next((c for c in df_filtrowane.columns if 'REKOMENDACJA' in c.upper()), None)
-    
-    if col_rek and col_instrument:
-        okazje = df_filtrowane[df_filtrowane[col_rek].astype(str).str.contains('OKAZJA|DOKUP', case=False, na=False)]
-        
-        if not okazje.empty:
-            st.success("🎯 **Sygnały inwestycyjne - rozważ dokupienie tych pozycji:**")
-            
-            kolumny_okazje = [col_instrument]
-            
-            col_cena = next((c for c in df_filtrowane.columns if 'AKTUALNA CENA' in c.upper()), None)
-            if col_cena and col_cena not in kolumny_okazje: kolumny_okazje.append(col_cena)
-            
-            col_roznica_proc = next((c for c in df_filtrowane.columns if 'RÓŻNICA [%]' in c.upper()), None)
-            if col_roznica_proc and col_roznica_proc not in kolumny_okazje: kolumny_okazje.append(col_roznica_proc)
-            
-            if col_rek not in kolumny_okazje: kolumny_okazje.append(col_rek)
-            
-            st.dataframe(okazje[kolumny_okazje], use_container_width=True, hide_index=True)
-
-    # --- TABELA UDZIAŁÓW ---
-    st.divider()
-    st.subheader("Struktura portfela (Alokacja)")
-    
-    col_udzial = next((c for c in df_filtrowane.columns if 'AKTUALNY UDZIAŁ' in c.upper() or 'UDZIAŁ PROCENTOWY' in c.upper()), None)
-    col_cel = next((c for c in df_filtrowane.columns if 'CEL' in c.upper()), None)
-    
-    if col_konto and col_instrument and col_udzial and col_cel:
-        df_alokacja = df_filtrowane[[col_konto, col_instrument, col_udzial, col_cel]].copy()
-        
-        df_alokacja.rename(columns={
-            col_konto: 'Konto',
-            col_instrument: 'Nazwa',
-            col_udzial: 'Udział procentowy',
-            col_cel: 'Udział cel'
-        }, inplace=True)
-        
-        st.dataframe(df_alokacja, use_container_width=True, hide_index=True)
-    else:
-        st.info("Nie odnaleziono wszystkich potrzebnych kolumn do wyświetlenia tabeli udziałów.")
-        
-    # --- WYKRES ---
-    if col_wartosc and col_instrument:
-        st.markdown("<br>**Wykres podziału portfela**", unsafe_allow_html=True)
-        
-        df_wykres = df_filtrowane.copy()
-        df_wykres['Wartość PLN'] = df_wykres[col_wartosc].apply
+    col_rek = next((c for c in df_filtrowane.columns if 'REKOMENDACJA' in c
