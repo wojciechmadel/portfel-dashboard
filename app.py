@@ -58,12 +58,12 @@ if df_surowe is not None:
     col_instrument = next((c for c in df_surowe.columns if 'INSTRUMENT' in c.upper()), None)
     col_wartosc = next((c for c in df_surowe.columns if 'WARTOŚĆ RYNKOWA' in c.upper()), None)
     
-    # --- PASEK BOCZNY (FILTRY) ---
-    st.sidebar.header("Opcje Filtrowania")
+    # --- PASEK BOCZNY (WYGODNY FILTR KONT) ---
+    st.sidebar.header("📊 Filtrowanie")
     if col_konto:
         wszystkie_konta = df_surowe[col_konto].dropna().unique().tolist()
         wybrane_konta = st.sidebar.multiselect(
-            "Wybierz konto (np. IKE, IKZE, XTB):", 
+            "Wybierz konto:", 
             options=wszystkie_konta, 
             default=wszystkie_konta
         )
@@ -78,21 +78,17 @@ if df_surowe is not None:
     st.subheader("Podsumowanie")
     col_m1, col_m2 = st.columns(2)
     
-    # Szukamy kolumny ze stopą zwrotu (np. Różnica [%] lub Stopa zwrotu)
     col_stopa = next((c for c in df_filtrowane.columns if 'RÓŻNICA [%]' in c.upper() or 'STOPA ZWROTU' in c.upper()), None)
     
     if col_stopa:
-        # Konwertujemy wartości stóp zwrotu na liczby
         stopy_liczby = df_filtrowane[col_stopa].apply(czysc_liczbe)
         
-        # 1. Liczba pozycji na plus i minus
         ile_plus = (stopy_liczby > 0).sum()
         ile_minus = (stopy_liczby < 0).sum()
         ile_zero = (stopy_liczby == 0).sum()
         
         col_m1.metric("Pozycje (Zielone / Czerwone)", f"🟢 {ile_plus}  |  🔴 {ile_minus}" + (f"  |  ⚪ {ile_zero}" if ile_zero > 0 else ""))
         
-        # 2. Średnia stopa zwrotu
         srednia_stopa = stopy_liczby.mean()
         col_m2.metric("Średnia stopa zwrotu", f"{srednia_stopa:+.2f}%".replace('.', ','))
     else:
@@ -156,7 +152,7 @@ if df_surowe is not None:
         
         st.dataframe(df_alokacja, use_container_width=True, hide_index=True)
     else:
-        st.info("Nie odnaleziono wszystkich potrzebnych kolumn do wyświetlenia tabeli udziałów (Konto, Instrument, Udział w portfelu, Cel).")
+        st.info("Nie odnaleziono wszystkich potrzebnych kolumn do wyświetlenia tabeli udziałów.")
         
     # --- WYKRES POD TABELĄ ---
     if col_wartosc and col_instrument:
