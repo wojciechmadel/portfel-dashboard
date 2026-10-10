@@ -78,16 +78,26 @@ if df_surowe is not None:
     st.subheader("Podsumowanie")
     col_m1, col_m2 = st.columns(2)
     
-    if col_wartosc:
-        wartosc_portfela = df_filtrowane[col_wartosc].apply(czysc_liczbe).sum()
-        w_str = f"{wartosc_portfela:,.2f}".replace(',', 'X').replace('.', ',').replace('X', ' ')
-        col_m1.metric("Łączna wartość", f"{w_str} PLN")
+    # Szukamy kolumny ze stopą zwrotu (np. Różnica [%] lub Stopa zwrotu)
+    col_stopa = next((c for c in df_filtrowane.columns if 'RÓŻNICA [%]' in c.upper() or 'STOPA ZWROTU' in c.upper()), None)
+    
+    if col_stopa:
+        # Konwertujemy wartości stóp zwrotu na liczby
+        stopy_liczby = df_filtrowane[col_stopa].apply(czysc_liczbe)
         
-    col_zysk = next((c for c in df_filtrowane.columns if 'ZYSK NETTO' in c.upper()), None)
-    if col_zysk:
-        zysk_portfela = df_filtrowane[col_zysk].apply(czysc_liczbe).sum()
-        z_str = f"{zysk_portfela:,.2f}".replace(',', 'X').replace('.', ',').replace('X', ' ')
-        col_m2.metric("Zysk / Strata netto", f"{z_str} PLN")
+        # 1. Liczba pozycji na plus i minus
+        ile_plus = (stopy_liczby > 0).sum()
+        ile_minus = (stopy_liczby < 0).sum()
+        ile_zero = (stopy_liczby == 0).sum()
+        
+        col_m1.metric("Pozycje (Zielone / Czerwone)", f"🟢 {ile_plus}  |  🔴 {ile_minus}" + (f"  |  ⚪ {ile_zero}" if ile_zero > 0 else ""))
+        
+        # 2. Średnia stopa zwrotu
+        srednia_stopa = stopy_liczby.mean()
+        col_m2.metric("Średnia stopa zwrotu", f"{srednia_stopa:+.2f}%".replace('.', ','))
+    else:
+        col_m1.metric("Pozycje", "Brak danych")
+        col_m2.metric("Średnia stopa zwrotu", "Brak kolumny")
         
     st.divider()
         
