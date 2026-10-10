@@ -189,4 +189,65 @@ if df_surowe is not None:
                 # Obliczamy braki kwotowe
                 df_calc['Brakuje_PLN'] = df_calc['Docelowa_Kwota'] - df_calc['Wartość_PLN']
                 
-                # Filtrujemy tylko te,
+                # Filtrujemy tylko te, których brakuje
+                do_kupienia = df_calc[df_calc['Brakuje_PLN'] > 0].copy()
+                do_kupienia = do_kupienia.sort_values(by='Brakuje_PLN', ascending=False)
+                
+                if not do_kupienia.empty:
+                    # Rozdzielamy proporcjonalnie wpłatę na brakujące pozycje
+                    suma_brakow = do_kupienia['Brakuje_PLN'].sum()
+                    do_kupienia['Proponowana_Kwota'] = (do_kupienia['Brakuje_PLN'] / suma_brakow) * kwota_wplaty
+                    
+                    df_zakupy = do_kupienia[[col_instrument, 'Brakuje_PLN', 'Proponowana_Kwota']].copy()
+                    df_zakupy.rename(columns={
+                        'Brakuje_PLN': 'Niedobór w portfelu (PLN)',
+                        'Proponowana_Kwota': f'Kup za (PLN) - z puli wpłaty'
+                    }, inplace=True)
+                    
+                    # Zaokrąglenie do 2 miejsc po przecinku
+                    df_zakupy['Niedobór w portfelu (PLN)'] = df_zakupy['Niedobór w portfelu (PLN)'].round(2)
+                    df_zakupy[f'Kup za (PLN) - z puli wpłaty'] = df_zakupy[f'Kup za (PLN) - z puli wpłaty'].round(2)
+                    
+                    st.dataframe(df_zakupy, use_container_width=True, hide_index=True)
+                else:
+                    st.success("Twoja struktura portfela jest idealnie zbalansowana!")
+            else:
+                st.warning("Cele w widocznym portfelu wynoszą 0%, nie można wyliczyć alokacji.")
+
+    # --- REKOMENDACJE (OKAZJE DO DOKUPIENIA) ---
+    col_rek = next((c for c in df_filtrowane.columns if 'REKOMENDACJA' in c.upper()), None)
+    if col_rek and col_instrument:
+        st.divider()
+        okazje = df_filtrowane[df_filtrowane[col_rek].astype(str).str.contains('OKAZJA|DOKUP', case=False, na=False)]
+        
+        if not okazje.empty:
+            st.success("🎯 **Z arkusza: Sygnały inwestycyjne - rozważ dokupienie tych pozycji:**")
+            
+            kolumny_okazje = [col_instrument]
+            col_cena = next((c for c in df_filtrowane.columns if 'AKTUALNA CENA' in c.upper()), None)
+            if col_cena and col_cena not in kolumny_okazje: kolumny_okazje.append(col_cena)
+            col_roznica_proc = next((c for c in df_filtrowane.columns if 'RÓŻNICA [%]' in c.upper()), None)
+            if col_roznica_proc and col_roznica_proc not in kolumny_okazje: kolumny_okazje.append(col_roznica_proc)
+            if col_rek not in kolumny_okazje: kolumny_okazje.append(col_rek)
+            
+            st.dataframe(okazje[kolumny_okazje], use_container_width=True, hide_index=True)
+
+    # --- WYKRES STRUKTURY PORTFELA ---
+    if col_wartosc and col_instrument:
+        st.divider()
+        st.markdown("**Aktualna struktura portfela (Wykres kołowy)**")
+        
+        df_wykres = df_filtrowane.copy()
+        df_wykres['Wartość PLN'] = df_wykres[col_wartosc].apply(czysc_liczbe)
+        df_wykres = df_wykres[df_wykres['Wartość PLN'] > 0]
+        
+        wykres = alt.Chart(df_wykres).mark_arc(innerRadius=60).encode(
+            theta=alt.Theta(field="Wartość PLN", type="quantitative"),
+            color=alt.Color(field=col_instrument, type="nominal", legend=alt.Legend(title="Instrumenty")),
+            tooltip=[col_konto, col_instrument, 'Wartość PLN'] if col_konto else [col_instrument, 'Wartość PLN']
+        ).properties(height=450)
+        
+        st.altair_chart(wykres, use_container_width=True)
+
+else:
+    st.warning("Oczekiwanie na dane lub problem z połączeniem z arkuszem.")
