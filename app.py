@@ -47,6 +47,11 @@ df_surowe = wczytaj_dane()
 
 if df_surowe is not None:
     
+    # Skracamy nazwę długiej kolumny z ceną rynkową od razu po załadowaniu
+    dluga_nazwa = next((c for c in df_surowe.columns if 'AKTUALNA CENA RYNKOWA' in c.upper()), None)
+    if dluga_nazwa:
+        df_surowe = df_surowe.rename(columns={dluga_nazwa: 'Aktualna cena'})
+    
     col_konto = next((c for c in df_surowe.columns if 'KONTO' in c.upper()), None)
     col_instrument = next((c for c in df_surowe.columns if 'INSTRUMENT' in c.upper()), None)
     
@@ -69,35 +74,38 @@ if df_surowe is not None:
     # --- GŁÓWNA TABELA ---
     st.subheader("Szczegóły portfela")
     
-    # Automatycznie wybieramy tylko interesujące Cię 5 kolumn do górnej tabeli
-    szukane_kolumny = ['LP', 'INSTRUMENT', 'ŚREDNIA CENA ZAKUPU', 'AKTUALNA CENA RYNKOWA', 'RÓŻNICA']
+    szukane_kolumny = ['LP', 'INSTRUMENT', 'ŚREDNIA CENA ZAKUPU', 'AKTUALNA CENA', 'RÓŻNICA']
     wybrane_kolumny = []
     
     for c in df_filtrowane.columns:
         if any(szukana in c.upper() for szukana in szukane_kolumny):
             wybrane_kolumny.append(c)
             
-    # Wyświetlamy tylko odnalezione kolumny z w/w listy
     if wybrane_kolumny:
         st.dataframe(df_filtrowane[wybrane_kolumny], use_container_width=True, hide_index=True)
     else:
         st.dataframe(df_filtrowane, use_container_width=True, hide_index=True)
         
     # --- REKOMENDACJE (OKAZJE DO DOKUPIENIA) ---
-    # Szukamy kolumny zawierającej rekomendację lub sygnał
     col_rek = next((c for c in df_filtrowane.columns if 'REKOMENDACJA' in c.upper()), None)
     
     if col_rek and col_instrument:
-        # Wyciągamy wiersze, które zawierają słowo "OKAZJA" lub "DOKUP" (bez względu na wielkość liter)
         okazje = df_filtrowane[df_filtrowane[col_rek].astype(str).str.contains('OKAZJA|DOKUP', case=False, na=False)]
         
         if not okazje.empty:
             st.success("🎯 **Sygnały inwestycyjne - rozważ dokupienie tych pozycji:**")
             
-            # W podsumowaniu okazji wyświetlamy tylko nazwę, cenę i rekomendację
             kolumny_okazje = [col_instrument]
-            col_cena = next((c for c in df_filtrowane.columns if 'AKTUALNA CENA RYNKOWA' in c.upper()), None)
+            
+            # Cena
+            col_cena = next((c for c in df_filtrowane.columns if 'AKTUALNA CENA' in c.upper()), None)
             if col_cena: kolumny_okazje.append(col_cena)
+            
+            # Różnica procentowa przed sygnałem
+            col_roznica_proc = next((c for c in df_filtrowane.columns if 'RÓŻNICA [%]' in c.upper()), None)
+            if col_roznica_proc: kolumny_okazje.append(col_roznica_proc)
+            
+            # Rekomendacja (Sygnał)
             kolumny_okazje.append(col_rek)
             
             st.dataframe(okazje[kolumny_okazje], use_container_width=True, hide_index=True)
@@ -106,41 +114,4 @@ if df_surowe is not None:
     st.divider()
     st.subheader("Struktura portfela (Alokacja)")
     
-    col_udzial = next((c for c in df_filtrowane.columns if 'AKTUALNY UDZIAŁ' in c.upper() or 'UDZIAŁ PROCENTOWY' in c.upper()), None)
-    col_cel = next((c for c in df_filtrowane.columns if 'CEL' in c.upper()), None)
-    
-    if col_konto and col_instrument and col_udzial and col_cel:
-        df_alokacja = df_filtrowane[[col_konto, col_instrument, col_udzial, col_cel]].copy()
-        
-        df_alokacja.rename(columns={
-            col_konto: 'Konto',
-            col_instrument: 'Nazwa',
-            col_udzial: 'Udział procentowy',
-            col_cel: 'Udział cel'
-        }, inplace=True)
-        
-        st.dataframe(df_alokacja, use_container_width=True, hide_index=True)
-    else:
-        st.info("Nie odnaleziono wszystkich potrzebnych kolumn do wyświetlenia tabeli udziałów (Konto, Instrument, Udział w portfelu, Cel).")
-        
-    # --- WYKRES POD TABELĄ ---
-    col_wartosc = next((c for c in df_filtrowane.columns if 'WARTOŚĆ RYNKOWA' in c.upper()), None)
-    
-    if col_wartosc and col_instrument:
-        st.markdown("<br>**Wykres podziału portfela**", unsafe_allow_html=True)
-        
-        df_wykres = df_filtrowane.copy()
-        df_wykres['Wartość PLN'] = df_wykres[col_wartosc].apply(czysc_liczbe)
-        
-        df_wykres = df_wykres[df_wykres['Wartość PLN'] > 0]
-        
-        wykres = alt.Chart(df_wykres).mark_arc(innerRadius=60).encode(
-            theta=alt.Theta(field="Wartość PLN", type="quantitative"),
-            color=alt.Color(field=col_instrument, type="nominal", legend=alt.Legend(title="Instrumenty")),
-            tooltip=[col_konto, col_instrument, 'Wartość PLN'] if col_konto else [col_instrument, 'Wartość PLN']
-        ).properties(height=450)
-        
-        st.altair_chart(wykres, use_container_width=True)
-
-else:
-    st.warning("Oczekiwanie na dane lub problem z połączeniem z arkuszem.")
+    col_udzial = next((c for c in df_filtrowane.columns if 'AKTUALNY UDZIAŁ' in c.upper() or 'UDZIAŁ PROCENTOWY'
