@@ -32,6 +32,10 @@ def wczytaj_dane():
     try:
         df = pd.read_csv(url_google_sheets, header=1)
         df.columns = df.columns.str.strip()
+        
+        # PANCERNA OCHRONA PRZED BŁĘDEM PYARROW: Usuwamy zduplikowane nazwy kolumn (np. wiele pustych)
+        df = df.loc[:, ~df.columns.duplicated()]
+        
         df = df.dropna(how='all')
         
         col_ticker = next((c for c in df.columns if 'TICKER' in c.upper()), None)
@@ -47,10 +51,12 @@ df_surowe = wczytaj_dane()
 
 if df_surowe is not None:
     
-    # Skracamy nazwę długiej kolumny z ceną rynkową od razu po załadowaniu
+    # Skracamy nazwę długiej kolumny
     dluga_nazwa = next((c for c in df_surowe.columns if 'AKTUALNA CENA RYNKOWA' in c.upper()), None)
     if dluga_nazwa:
         df_surowe = df_surowe.rename(columns={dluga_nazwa: 'Aktualna cena'})
+        # Po ewentualnej zmianie nazwy, ponownie upewniamy się, że nie ma duplikatów
+        df_surowe = df_surowe.loc[:, ~df_surowe.columns.duplicated()]
     
     col_konto = next((c for c in df_surowe.columns if 'KONTO' in c.upper()), None)
     col_instrument = next((c for c in df_surowe.columns if 'INSTRUMENT' in c.upper()), None)
@@ -79,7 +85,8 @@ if df_surowe is not None:
     
     for c in df_filtrowane.columns:
         if any(szukana in c.upper() for szukana in szukane_kolumny):
-            wybrane_kolumny.append(c)
+            if c not in wybrane_kolumny:  # Drugie zabezpieczenie przed duplikatami
+                wybrane_kolumny.append(c)
             
     if wybrane_kolumny:
         st.dataframe(df_filtrowane[wybrane_kolumny], use_container_width=True, hide_index=True)
@@ -97,16 +104,13 @@ if df_surowe is not None:
             
             kolumny_okazje = [col_instrument]
             
-            # Cena
             col_cena = next((c for c in df_filtrowane.columns if 'AKTUALNA CENA' in c.upper()), None)
-            if col_cena: kolumny_okazje.append(col_cena)
+            if col_cena and col_cena not in kolumny_okazje: kolumny_okazje.append(col_cena)
             
-            # Różnica procentowa przed sygnałem
             col_roznica_proc = next((c for c in df_filtrowane.columns if 'RÓŻNICA [%]' in c.upper()), None)
-            if col_roznica_proc: kolumny_okazje.append(col_roznica_proc)
+            if col_roznica_proc and col_roznica_proc not in kolumny_okazje: kolumny_okazje.append(col_roznica_proc)
             
-            # Rekomendacja (Sygnał)
-            kolumny_okazje.append(col_rek)
+            if col_rek not in kolumny_okazje: kolumny_okazje.append(col_rek)
             
             st.dataframe(okazje[kolumny_okazje], use_container_width=True, hide_index=True)
 
