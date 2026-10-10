@@ -8,8 +8,6 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("📈 Dashboard Portfela")
-
 def czysc_liczbe(wartosc):
     if pd.isna(wartosc) or wartosc == "#DIV/0!" or str(wartosc).strip() == "Brak danych":
         return 0.0
@@ -61,18 +59,22 @@ if df_surowe is not None:
     # --- PASEK BOCZNY (WYGODNY FILTR KONT) ---
     st.sidebar.header("📊 Filtrowanie")
     if col_konto:
-        wszystkie_konta = df_surowe[col_konto].dropna().unique().tolist()
+        # Używamy set(), aby uniknąć jakichkolwiek duplikatów kont na liście
+        wszystkie_konta = sorted(list(set(df_surowe[col_konto].dropna().astype(str).tolist())))
         wybrane_konta = st.sidebar.multiselect(
             "Wybierz konto:", 
             options=wszystkie_konta, 
             default=wszystkie_konta
         )
         if wybrane_konta:
-            df_filtrowane = df_surowe[df_surowe[col_konto].isin(wybrane_konta)].copy()
+            df_filtrowane = df_surowe[df_surowe[col_konto].astype(str).isin(wybrane_konta)].copy()
         else:
             df_filtrowane = df_surowe.copy()
     else:
         df_filtrowane = df_surowe.copy()
+        
+    # --- TYTUŁ APLIKACJI NA SAMEJ GÓRZE ---
+    st.title("📈 Dashboard Portfela")
         
     # --- PODSUMOWANIE NA GÓRZE ---
     st.subheader("Podsumowanie")
