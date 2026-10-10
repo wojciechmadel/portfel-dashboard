@@ -55,13 +55,19 @@ if df_surowe is not None:
     col_instrument = next((c for c in df_surowe.columns if 'INSTRUMENT' in c.upper()), None)
     col_wartosc = next((c for c in df_surowe.columns if 'WARTOŚĆ RYNKOWA' in c.upper()), None)
     
-    # --- PASEK BOCZNY (CZYSTA LISTA BEZ BLOKÓW/IKSA) ---
+    # --- PASEK BOCZNY (CZYSTA LISTA ROZWIJANA BEZ TAGÓW/KWADRATÓW) ---
     st.sidebar.header("📊 Filtrowanie")
     if col_konto:
         unikalne_konta = sorted(list(set(df_surowe[col_konto].dropna().astype(str).tolist())))
         opcje_filtru = ["Wszystkie"] + unikalne_konta
         
-        wybrane_konto = st.sidebar.selectbox("Wybierz konto:", options=opcje_filtru, index=0)
+        # Klucz key wymusza odświeżenie widgetu na urządzeniach mobilnych
+        wybrane_konto = st.sidebar.selectbox(
+            "Wybierz konto:", 
+            options=opcje_filtru, 
+            index=0,
+            key="filtr_konta_select"
+        )
         
         if wybrane_konto == "Wszystkie":
             df_filtrowane = df_surowe.copy()
@@ -109,13 +115,4 @@ if df_surowe is not None:
     if wybrane_kolumny:
         st.dataframe(df_filtrowane[wybrane_kolumny], use_container_width=True, hide_index=True)
     else:
-        st.dataframe(df_filtrowane, use_container_width=True, hide_index=True)
-        
-    # --- REKOMENDACJE (OKAZJE DO DOKUPIENIA) ---
-    col_rek = next((c for c in df_filtrowane.columns if 'REKOMENDACJA' in c.upper()), None)
-    
-    if col_rek and col_instrument:
-        okazje = df_filtrowane[df_filtrowane[col_rek].astype(str).str.contains('OKAZJA|DOKUP', case=False, na=False)]
-        
-        if not okazje.empty:
-            st.success("🎯 **Sygnały inwestycyjne - rozważ dok
+        st.dataframe(df
