@@ -23,6 +23,21 @@ def czysc_liczbe(wartosc):
     except:
         return 0.0
 
+# Funkcja do radzenia sobie z widełkami celów (np. "4-6%")
+def parsuj_procent_cel(wartosc):
+    if pd.isna(wartosc): return 0.0
+    val = str(wartosc).replace('%', '').replace(' ', '')
+    if '-' in val:
+        parts = val.split('-')
+        try:
+            return (float(parts[0].replace(',', '.')) + float(parts[1].replace(',', '.'))) / 2.0
+        except:
+            return 0.0
+    try:
+        return float(val.replace(',', '.'))
+    except:
+        return 0.0
+
 url_google_sheets = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQbbEQJDM7jtXbscroBG3cOG53wP1gbkccHHJNQsvNC0cpPl7fl30bTj6hwwp9eiG4FIdou6S7MjvE6/pub?gid=1930372896&single=true&output=csv"
 
 @st.cache_data(ttl=60)
@@ -56,7 +71,7 @@ if df_surowe is not None:
     col_wartosc = next((c for c in df_surowe.columns if 'WARTOŚĆ RYNKOWA' in c.upper()), None)
     col_zysk = next((c for c in df_surowe.columns if 'ZYSK NETTO' in c.upper() or 'ZYSK / STRATA' in c.upper()), None)
     
-    # --- PASEK BOCZNY (TYLKO JEDNOKROTNY WYBÓR - BEZ IKSÓW I TAGÓW) ---
+    # --- PASEK BOCZNY ---
     st.sidebar.header("📊 Filtrowanie")
     if col_konto:
         unikalne_konta = sorted(list(set(df_surowe[col_konto].dropna().astype(str).str.strip().tolist())))
@@ -66,7 +81,7 @@ if df_surowe is not None:
             "Wybierz konto:", 
             options=opcje_filtru, 
             index=0,
-            key="filtr_konta_czysta_lista"
+            key="filtr_konta_single"
         )
         
         if wybrane_konto == "Wszystkie":
@@ -75,6 +90,10 @@ if df_surowe is not None:
             df_filtrowane = df_surowe[df_surowe[col_konto].astype(str).str.strip() == wybrane_konto].copy()
     else:
         df_filtrowane = df_surowe.copy()
+        
+    st.sidebar.divider()
+    st.sidebar.header("🧮 Kalkulator wpłat")
+    kwota_wplaty = st.sidebar.number_input("Planowana wpłata (PLN):", min_value=0.0, step=100.0, value=0.0)
         
     # --- TYTUŁ APLIKACJI ---
     st.title("📈 Dashboard Portfela")
@@ -87,23 +106,17 @@ if df_surowe is not None:
     
     if col_stopa:
         stopy_liczby = df_filtrowane[col_stopa].apply(czysc_liczbe)
-        
         ile_plus = (stopy_liczby > 0).sum()
         ile_minus = (stopy_liczby < 0).sum()
         ile_zero = (stopy_liczby == 0).sum()
         
         col_m1.metric("Pozycje (Zielone / Czerwone)", f"🟢 {ile_plus}  |  🔴 {ile_minus}" + (f"  |  ⚪ {ile_zero}" if ile_zero > 0 else ""))
         
-        # WAŻONA STOPA ZWROTU
         if col_zysk and col_wartosc:
             suma_zysku = df_filtrowane[col_zysk].apply(czysc_liczbe).sum()
             suma_wartosci = df_filtrowane[col_wartosc].apply(czysc_liczbe).sum()
             suma_kosztu = suma_wartosci - suma_zysku
-            
-            if suma_kosztu > 0:
-                srednia_wazona_stopa = (suma_zysku / suma_kosztu) * 100
-            else:
-                srednia_wazona_stopa = stopy_liczby.mean()
+            srednia_wazona_stopa = (suma_zysku / suma_kosztu) * 100 if suma_kosztu > 0 else stopy_liczby.mean()
         else:
             srednia_wazona_stopa = stopy_liczby.mean()
             
@@ -128,64 +141,52 @@ if df_surowe is not None:
         st.dataframe(df_filtrowane[wybrane_kolumny], use_container_width=True, hide_index=True)
     else:
         st.dataframe(df_filtrowane, use_container_width=True, hide_index=True)
-        
-    # --- REKOMENDACJE (OKAZJE DO DOKUPIENIA) ---
-    col_rek = next((c for c in df_filtrowane.columns if 'REKOMENDACJA' in c.upper()), None)
-    
-    if col_rek and col_instrument:
-        okazje = df_filtrowane[df_filtrowane[col_rek].astype(str).str.contains('OKAZJA|DOKUP', case=False, na=False)]
-        
-        if not okazje.empty:
-            st.success("🎯 **Sygnały inwestycyjne - rozważ dokupienie tych pozycji:**")
-            
-            kolumny_okazje = [col_instrument]
-            
-            col_cena = next((c for c in df_filtrowane.columns if 'AKTUALNA CENA' in c.upper()), None)
-            if col_cena and col_cena not in kolumny_okazje: kolumny_okazje.append(col_cena)
-            
-            col_roznica_proc = next((c for c in df_filtrowane.columns if 'RÓŻNICA [%]' in c.upper()), None)
-            if col_roznica_proc and col_roznica_proc not in kolumny_okazje: kolumny_okazje.append(col_roznica_proc)
-            
-            if col_rek not in kolumny_okazje: kolumny_okazje.append(col_rek)
-            
-            st.dataframe(okazje[kolumny_okazje], use_container_width=True, hide_index=True)
 
-    # --- TABELA UDZIAŁÓW ---
-    st.divider()
-    st.subheader("Struktura portfela (Alokacja)")
-    
+    # --- WIZUALIZACJA I KALKULATOR (NOWOŚĆ) ---
     col_udzial = next((c for c in df_filtrowane.columns if 'AKTUALNY UDZIAŁ' in c.upper() or 'UDZIAŁ PROCENTOWY' in c.upper()), None)
     col_cel = next((c for c in df_filtrowane.columns if 'CEL' in c.upper()), None)
-    
-    if col_konto and col_instrument and col_udzial and col_cel:
-        df_alokacja = df_filtrowane[[col_konto, col_instrument, col_udzial, col_cel]].copy()
-        
-        df_alokacja.rename(columns={
-            col_konto: 'Konto',
-            col_instrument: 'Nazwa',
-            col_udzial: 'Udział procentowy',
-            col_cel: 'Udział cel'
-        }, inplace=True)
-        
-        st.dataframe(df_alokacja, use_container_width=True, hide_index=True)
-    else:
-        st.info("Nie odnaleziono wszystkich potrzebnych kolumn do wyświetlenia tabeli udziałów.")
-        
-    # --- WYKRES ---
-    if col_wartosc and col_instrument:
-        st.markdown("<br>**Wykres podziału portfela**", unsafe_allow_html=True)
-        
-        df_wykres = df_filtrowane.copy()
-        df_wykres['Wartość PLN'] = df_wykres[col_wartosc].apply(czysc_liczbe)
-        df_wykres = df_wykres[df_wykres['Wartość PLN'] > 0]
-        
-        wykres = alt.Chart(df_wykres).mark_arc(innerRadius=60).encode(
-            theta=alt.Theta(field="Wartość PLN", type="quantitative"),
-            color=alt.Color(field=col_instrument, type="nominal", legend=alt.Legend(title="Instrumenty")),
-            tooltip=[col_konto, col_instrument, 'Wartość PLN'] if col_konto else [col_instrument, 'Wartość PLN']
-        ).properties(height=450)
-        
-        st.altair_chart(wykres, use_container_width=True)
 
-else:
-    st.warning("Oczekiwanie na dane lub problem z połączeniem z arkuszem.")
+    if col_udzial and col_cel and col_wartosc and col_instrument:
+        st.divider()
+        st.subheader("⚖️ Rebalancing i Kalkulator wpłat")
+        
+        # Przygotowanie danych do matematyki
+        df_calc = df_filtrowane.copy()
+        df_calc['Aktualny_proc'] = df_calc[col_udzial].apply(parsuj_procent_cel)
+        df_calc['Cel_proc'] = df_calc[col_cel].apply(parsuj_procent_cel)
+        df_calc['Wartość_PLN'] = df_calc[col_wartosc].apply(czysc_liczbe)
+        
+        # Obliczanie odchylenia: Cel - Aktualny. Wynik dodatni = brakuje nam tego w portfelu.
+        df_calc['Odchylenie'] = df_calc['Cel_proc'] - df_calc['Aktualny_proc']
+        
+        # 1. WYKRES ODCHYLEŃ
+        st.markdown("**Odchylenie od celu (w punktach procentowych)**")
+        wykres_odchylen = alt.Chart(df_calc).mark_bar().encode(
+            x=alt.X('Odchylenie:Q', title='Brakujący udział (%) ->', scale=alt.Scale(domainMid=0)),
+            y=alt.Y(f'{col_instrument}:N', sort='-x', title=''),
+            color=alt.condition(
+                alt.datum.Odchylenie > 0,
+                alt.value('#27ae60'),  # Zielony - trzeba dokupić
+                alt.value('#e74c3c')   # Czerwony - jest tego za dużo
+            ),
+            tooltip=[col_instrument, 'Aktualny_proc', 'Cel_proc', 'Odchylenie']
+        ).properties(height=350)
+        st.altair_chart(wykres_odchylen, use_container_width=True)
+        
+        # 2. KALKULATOR ZAKUPÓW
+        if kwota_wplaty > 0:
+            st.markdown(f"**Jak optymalnie zainwestować {kwota_wplaty:,.2f} PLN, aby wyrównać portfel?**")
+            
+            # Normalizujemy cele (przydaje się, gdy filtrujemy np. tylko "IKE" i cele nie sumują się do 100%)
+            suma_celow = df_calc['Cel_proc'].sum()
+            if suma_celow > 0:
+                obecna_wart = df_calc['Wartość_PLN'].sum()
+                docelowa_wart = obecna_wart + kwota_wplaty
+                
+                # Obliczamy ile PLN POWINNO być w danym instrumencie po wpłacie
+                df_calc['Docelowa_Kwota'] = docelowa_wart * (df_calc['Cel_proc'] / suma_celow)
+                
+                # Obliczamy braki kwotowe
+                df_calc['Brakuje_PLN'] = df_calc['Docelowa_Kwota'] - df_calc['Wartość_PLN']
+                
+                # Filtrujemy tylko te,
