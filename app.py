@@ -55,19 +55,19 @@ if df_surowe is not None:
     col_instrument = next((c for c in df_surowe.columns if 'INSTRUMENT' in c.upper()), None)
     col_wartosc = next((c for c in df_surowe.columns if 'WARTOŚĆ RYNKOWA' in c.upper()), None)
     col_zysk = next((c for c in df_surowe.columns if 'ZYSK NETTO' in c.upper() or 'ZYSK / STRATA' in c.upper()), None)
-    col_koszt = next((c for c in df_surowe.columns if 'KOSZT ZAKUPU' in c.upper() or 'WARTOŚĆ ZAKUPU' in c.upper()), None)
     
-    # --- PASEK BOCZNY (POJEDYNCZY SELECTBOX) ---
+    # --- PASEK BOCZNY (TUTAJ ZASTĄPILIŚMY MULTISELECT ZWYKŁYM SELECTBOXEM) ---
     st.sidebar.header("📊 Filtrowanie")
     if col_konto:
         unikalne_konta = sorted(list(set(df_surowe[col_konto].dropna().astype(str).str.strip().tolist())))
         opcje_filtru = ["Wszystkie"] + unikalne_konta
         
+        # st.sidebar.selectbox DODAJE ZWYKŁĄ ROZWIJANĄ LISTĘ BEZ TAGÓW I IKSÓW!
         wybrane_konto = st.sidebar.selectbox(
             "Wybierz konto:", 
             options=opcje_filtru, 
             index=0,
-            key="filtr_konto_selectbox_final"
+            key="filtr_konta_v2"
         )
         
         if wybrane_konto == "Wszystkie":
@@ -95,7 +95,7 @@ if df_surowe is not None:
         
         col_m1.metric("Pozycje (Zielone / Czerwone)", f"🟢 {ile_plus}  |  🔴 {ile_minus}" + (f"  |  ⚪ {ile_zero}" if ile_zero > 0 else ""))
         
-        # PRAWIDŁOWE WYLICZENIE ŚREDNIEJ WAŻONEJ
+        # Ważona stopa zwrotu (Kwota Zysku / Kwota Zainwestowana)
         if col_zysk and col_wartosc:
             suma_zysku = df_filtrowane[col_zysk].apply(czysc_liczbe).sum()
             suma_wartosci = df_filtrowane[col_wartosc].apply(czysc_liczbe).sum()
@@ -167,3 +167,14 @@ if df_surowe is not None:
             col_udzial: 'Udział procentowy',
             col_cel: 'Udział cel'
         }, inplace=True)
+        
+        st.dataframe(df_alokacja, use_container_width=True, hide_index=True)
+    else:
+        st.info("Nie odnaleziono wszystkich potrzebnych kolumn do wyświetlenia tabeli udziałów.")
+        
+    # --- WYKRES ---
+    if col_wartosc and col_instrument:
+        st.markdown("<br>**Wykres podziału portfela**", unsafe_allow_html=True)
+        
+        df_wykres = df_filtrowane.copy()
+        df_wykres['Wartość PLN'] = df_wykres[col_wartosc].apply
