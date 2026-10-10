@@ -30,14 +30,11 @@ url_google_sheets = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQbbEQJDM7j
 @st.cache_data(ttl=60)
 def wczytaj_dane():
     try:
-        # header=1 ponieważ właściwe nazwy kolumn są w drugim wierszu
         df = pd.read_csv(url_google_sheets, header=1)
-        
-        # PANCERNY KROK: Usuwamy ukryte spacje z nazw kolumn!
         df.columns = df.columns.str.strip()
         df = df.dropna(how='all')
         
-        # Filtrowanie pustych miesięcy po kolumnie Ticker (dynamicznie szuka kolumny)
+        # Filtrowanie pustych wierszy bazując na kolumnie TICKER
         col_ticker = next((c for c in df.columns if 'TICKER' in c.upper()), None)
         if col_ticker:
             df = df.dropna(subset=[col_ticker])
@@ -51,8 +48,8 @@ df_surowe = wczytaj_dane()
 
 if df_surowe is not None:
     
-    # Dynamicznie odnajdujemy kolumnę z kontem
     col_konto = next((c for c in df_surowe.columns if 'KONTO' in c.upper()), None)
+    col_instrument = next((c for c in df_surowe.columns if 'INSTRUMENT' in c.upper()), None)
     
     # --- PASEK BOCZNY (FILTRY) ---
     st.sidebar.header("Opcje Filtrowania")
@@ -74,45 +71,51 @@ if df_surowe is not None:
     st.subheader("Szczegóły portfela")
     st.dataframe(df_filtrowane, use_container_width=True, hide_index=True)
     
-    # --- TABELA UDZIAŁÓW I WYKRES ---
+    # --- NOWA TABELA UDZIAŁÓW ---
     st.divider()
     st.subheader("Struktura portfela (Alokacja)")
     
-    # Dynamicznie szukamy kolumn dla wykresu (odporne na literówki i spacje w arkuszu)
+    # Szukamy kolumn, które mają w nazwie Udział i Cel
+    col_udzial = next((c for c in df_filtrowane.columns if 'AKTUALNY UDZIAŁ' in c.upper() or 'UDZIAŁ PROCENTOWY' in c.upper()), None)
+    col_cel = next((c for c in df_filtrowane.columns if 'CEL' in c.upper()), None)
+    
+    if col_konto and col_instrument and col_udzial and col_cel:
+        # Wybieramy tylko interesujące nas kolumny
+        df_alokacja = df_filtrowane[[col_konto, col_instrument, col_udzial, col_cel]].copy()
+        
+        # Zmieniamy nazwy na takie, o jakie prosiłeś
+        df_alokacja.rename(columns={
+            col_konto: 'Konto',
+            col_instrument: 'Nazwa',
+            col_udzial: 'Udział procentowy',
+            col_cel: 'Udział cel'
+        }, inplace=True)
+        
+        st.dataframe(df_alokacja, use_container_width=True, hide_index=True)
+    else:
+        st.info("Nie odnaleziono wszystkich potrzebnych kolumn do wyświetlenia tabeli udziałów (Konto, Instrument, Udział w portfelu, Cel).")
+        
+    # --- WYKRES POD TABELĄ ---
     col_wartosc = next((c for c in df_filtrowane.columns if 'WARTOŚĆ RYNKOWA' in c.upper()), None)
-    col_instrument = next((c for c in df_filtrowane.columns if 'INSTRUMENT' in c.upper()), None)
     
     if col_wartosc and col_instrument:
-        # Czyścimy dane do postaci liczbowej
-        df_filtrowane['Wartość PLN'] = df_filtrowane[col_wartosc].apply(czysc_liczbe)
+        st.markdown("<br>**Wykres podziału portfela**", unsafe_allow_html=True)
         
-        # Grupowanie
-        grupowanie = [col_instrument]
-        if col_konto:
-            grupowanie = [col_konto, col_instrument]
-            
-        df_udzialy = df_filtrowane.groupby(grupowanie)['Wartość PLN'].sum().reset_index()
-        df_udzialy = df_udzialy[df_udzialy['Wartość PLN'] > 0]
-        df_udzialy = df_udzialy.sort_values(by='Wartość PLN', ascending=False)
+        # Przygotowujemy dane do wykresu
+        df_wykres = df_filtrowane.copy()
+        df_wykres['Wartość PLN'] = df_wykres[col_wartosc].apply(czysc_liczbe)
         
-        kolumna_tabela, kolumna_wykres = st.columns([1, 1])
+        # Pomijamy zerowe pozycje
+        df_wykres = df_wykres[df_wykres['Wartość PLN'] > 0]
         
-        with kolumna_tabela:
-            st.markdown("**Podsumowanie udziałów**")
-            st.dataframe(df_udzialy, use_container_width=True, hide_index=True)
-            
-        with kolumna_wykres:
-            st.markdown("**Wykres wartości portfela**")
-            
-            wykres = alt.Chart(df_udzialy).mark_arc(innerRadius=50).encode(
-                theta=alt.Theta(field="Wartość PLN", type="quantitative"),
-                color=alt.Color(field=col_instrument, type="nominal", legend=alt.Legend(title="Instrumenty")),
-                tooltip=grupowanie + ['Wartość PLN']
-            ).properties(height=350)
-            
-            st.altair_chart(wykres, use_container_width=True)
-    else:
-        st.warning(f"Brak możliwości wygenerowania wykresu. Nie znaleziono odpowiednich kolumn. Dostępne kolumny to: {', '.join(df_filtrowane.columns)}")
+        # Interaktywny wykres
+        wykres = alt.Chart(df_wykres).mark_arc(innerRadius=60).encode(
+            theta=alt.Theta(field="Wartość PLN", type="quantitative"),
+            color=alt.Color(field=col_instrument, type="nominal", legend=alt.Legend(title="Instrumenty")),
+            tooltip=[col_konto, col_instrument, 'Wartość PLN'] if col_konto else [col_instrument, 'Wartość PLN']
+        ).properties(height=450)
+        
+        st.altair_chart(wykres, use_container_width=True)
 
 else:
     st.warning("Oczekiwanie na dane lub problem z połączeniem z arkuszem.")
